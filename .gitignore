@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual Environment
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Files
+place_ids.txt
+existing_place_ids.txt
+
+# OS
+.DS_Store
+Thumbs.db
