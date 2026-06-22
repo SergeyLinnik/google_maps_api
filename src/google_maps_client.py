@@ -22,10 +22,6 @@ class GoogleMapsApiClient:
         self.api_key: str = "qaclick123"
         self.timeout: int = 30
 
-    # ------------------------------------------------------------------------
-    # PRIVATE METHODS (URL BUILDING)
-    # ------------------------------------------------------------------------
-
     def _get_post_url(self) -> str:
         """URL for POST /maps/api/place/add/json"""
         return f"{self.base_url}/maps/api/place/add/json?key={self.api_key}"
@@ -37,10 +33,6 @@ class GoogleMapsApiClient:
     def _get_put_url(self) -> str:
         """URL for PUT /maps/api/place/update/json"""
         return f"{self.base_url}/maps/api/place/update/json?key={self.api_key}"
-
-    # ------------------------------------------------------------------------
-    # PRIVATE METHODS (SEND REQUESTS)
-    # ------------------------------------------------------------------------
 
     def _send_post(self, url: str, body: dict) -> requests.Response:
         """Send POST request"""
@@ -55,10 +47,6 @@ class GoogleMapsApiClient:
         """Send PUT request"""
         headers: dict = {"Content-Type": "application/json"}
         return requests.put(url, json=body, headers=headers, timeout=self.timeout)
-
-    # ------------------------------------------------------------------------
-    # PUBLIC METHODS (BUSINESS LOGIC)
-    # ------------------------------------------------------------------------
 
     def create_place(self, lat: float, lng: float, name: str, address: str) -> str:
         """
@@ -107,7 +95,7 @@ class GoogleMapsApiClient:
         print(f"   [OK] Place created! place_id: {place_id}")
         return place_id
 
-    def get_place_details(self, place_id: str) -> dict:
+    def get_place_details(self, place_id: str) -> dict | None:
         """
         Get place details via GET request.
 
@@ -115,10 +103,7 @@ class GoogleMapsApiClient:
             place_id: Place identifier
 
         Returns:
-            Place data as dict
-
-        Raises:
-            AssertionError: If place not found
+            Place data as dict or None if place does not exist
         """
         url: str = self._get_get_url(place_id)
         print(f"\n[GET] Getting place details for: {place_id}")
@@ -127,12 +112,18 @@ class GoogleMapsApiClient:
         response: requests.Response = self._send_get(url)
         print(f"   Status code: {response.status_code}")
 
+        if response.status_code == 404:
+            print(f"   [INFO] Place does not exist (404)")
+            return None
+
         assert response.status_code == 200, \
-            f"GET returned status {response.status_code}"
+            f"GET returned unexpected status {response.status_code}"
 
         data: dict = response.json()
-        assert "msg" not in data, \
-            f"Place does not exist: {data.get('msg')}"
+
+        if "msg" in data:
+            print(f"   [INFO] Place does not exist: {data.get('msg')}")
+            return None
 
         print(f"   [OK] Place found, address: {data.get('address')}")
         return data
@@ -190,6 +181,8 @@ class GoogleMapsApiClient:
             True if address matches, False otherwise
         """
         details: dict = self.get_place_details(place_id)
+        if details is None:
+            return False
         actual_address: str = details.get("address", "")
 
         print(f"\n   [CHECK] Address update verification:")
