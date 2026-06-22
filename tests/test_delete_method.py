@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import time
 import sys
+import requests
 
 # Добавляем путь к корню проекта для импорта
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -80,7 +81,7 @@ class TestDeleteMethod:
         print("="*70)
 
     # ------------------------------------------------------------------------
-    # МЕТОД DELETE (ЛОГИКА В КЛИЕНТЕ УЖЕ ЕСТЬ, НО ДОБАВИМ ОБЕРТКУ)
+    # МЕТОД DELETE (БЕЗ TRY-EXCEPT)
     # ------------------------------------------------------------------------
 
     def delete_place_by_id(self, place_id: str, index: int) -> bool:
@@ -92,36 +93,33 @@ class TestDeleteMethod:
             index: Порядковый номер для вывода
 
         Returns:
-            True если удаление успешно, False если нет
+            True если удаление успешно или место уже удалено, False если ошибка
         """
         print(f"\n   --- Удаление #{index} place_id: {place_id[:20]}... ---")
 
-        # Используем существующий метод из клиента
-        try:
-            # В клиенте нет DELETE метода, добавляем логику здесь
-            import requests
-            url: str = f"{self.api.base_url}/maps/api/place/delete/json?key={self.api.api_key}"
-            body: dict = {"place_id": place_id}
+        url: str = f"{self.api.base_url}/maps/api/place/delete/json?key={self.api.api_key}"
+        body: dict = {"place_id": place_id}
 
-            print(f"   URL: {url}")
+        print(f"   URL: {url}")
 
-            response = requests.delete(url, json=body, headers={"Content-Type": "application/json"}, timeout=30)
-            print(f"   Статус-код: {response.status_code}")
+        response = requests.delete(url, json=body, headers={"Content-Type": "application/json"}, timeout=30)
+        print(f"   Статус-код: {response.status_code}")
 
-            if response.status_code == 200:
-                resp_json: dict = response.json()
-                if resp_json.get("status") == "OK":
-                    print(f"   ✅ Место удалено!")
-                    return True
-                else:
-                    print(f"   ❌ Ошибка DELETE: {resp_json}")
-                    return False
-            else:
-                print(f"   ❌ Ошибка DELETE: статус-код {response.status_code}")
-                return False
-        except Exception as e:
-            print(f"   ❌ Ошибка: {e}")
-            return False
+        # Если уже удален (404) - считаем успехом
+        if response.status_code == 404:
+            print(f"   ℹ️ Место уже было удалено ранее (404)")
+            return True
+
+        # Проверка через assert для остальных статусов
+        assert response.status_code == 200, \
+            f"DELETE вернул статус {response.status_code}"
+
+        resp_json: dict = response.json()
+        assert resp_json.get("status") == "OK", \
+            f"DELETE не успешен: {resp_json}"
+
+        print(f"   ✅ Место удалено!")
+        return True
 
     # ------------------------------------------------------------------------
     # ОСНОВНОЙ ТЕСТ
@@ -156,8 +154,6 @@ class TestDeleteMethod:
         # --------------------------------------------------------------------
         self.print_separator("[ШАГ 2] Удаление 2-го и 4-го place_id через DELETE")
 
-        # Индексы для удаления (2-й и 4-й)
-        # В Python индексация с 0, поэтому 2-й = индекс 1, 4-й = индекс 3
         indexes_to_delete: list[int] = [1, 3]
         deleted_count: int = 0
 
@@ -171,7 +167,7 @@ class TestDeleteMethod:
                 else:
                     print(f"   ⚠️ Не удалось удалить #{idx + 1} place_id")
 
-                time.sleep(0.5)  # Пауза между запросами
+                time.sleep(0.5)
 
         print(f"\n   ✅ Удалено мест: {deleted_count} из 2")
 
@@ -188,9 +184,9 @@ class TestDeleteMethod:
         for i, place_id in enumerate(all_place_ids, 1):
             print(f"\n   --- Проверка #{i}: {place_id[:20]}... ---")
 
-            exists = self.api.get_place_details(place_id) is not None
+            details = self.api.get_place_details(place_id)
 
-            if exists:
+            if details is not None:
                 existing_ids.append(place_id)
                 print(f"   ✅ Место СУЩЕСТВУЕТ")
             else:
@@ -232,7 +228,6 @@ class TestDeleteMethod:
             for i, pid in enumerate(non_existing_ids, 1):
                 print(f"   {i}. {pid}")
 
-        # Проверка: должно быть 3 существующих места
         assert len(existing_ids) == 3, \
             f"Ожидалось 3 существующих места, получено: {len(existing_ids)}"
 
@@ -244,10 +239,6 @@ class TestDeleteMethod:
         print(f"   GET запрос подтвердил: {len(existing_ids)} места существуют")
         print(f"   Новый файл создан с {len(existing_ids)} существующими place_id")
 
-
-# ============================================================================
-# ТОЧКА ВХОДА: СОЗДАНИЕ ЭКЗЕМПЛЯРА КЛАССА И ЗАПУСК ТЕСТА
-# ============================================================================
 
 if __name__ == "__main__":
     test: TestDeleteMethod = TestDeleteMethod()
